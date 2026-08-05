@@ -1,4 +1,4 @@
-# Drivu x TBL - Spin & Win
+# Drivu × TBL Summer Rewards
 
 A responsive campaign roulette built from the supplied beach artwork. Visitors can use 2-16 wheel slices, leave labels blank for automatic prize names, and see a full-screen winner reveal. Results are stored server-side for the private owner dashboard.
 

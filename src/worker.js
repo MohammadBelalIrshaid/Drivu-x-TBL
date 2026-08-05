@@ -709,7 +709,8 @@ async function handleCsvExport(request, env) {
   const body = `\ufeff${output.map((line) => line.map(csvCell).join(",")).join("\r\n")}\r\n`;
   const headers = new Headers({
     "Content-Type": "text/csv; charset=utf-8",
-    "Content-Disposition": 'attachment; filename="drivu-tbl-spin-results.csv"',
+    "Content-Disposition":
+      'attachment; filename="drivu-tbl-summer-rewards-results.csv"',
     "Content-Length": String(textEncoder.encode(body).byteLength),
     "Cache-Control": "no-store",
   });
