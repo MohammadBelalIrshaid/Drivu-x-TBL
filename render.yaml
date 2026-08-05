@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: drivu-x-tbl
+    runtime: python
+    plan: starter
+    region: frankfurt
+    numInstances: 1
+    buildCommand: python -m compileall -q server.py
+    startCommand: python server.py --host 0.0.0.0
+    healthCheckPath: /api/health
+    envVars:
+      - key: ROULETTE_OWNER_PIN
+        sync: false
+      - key: ROULETTE_COOKIE_SECURE
+        value: "1"
+      - key: ROULETTE_TRUST_PROXY
+        value: "1"
+      - key: ROULETTE_DB_PATH
+        value: /var/data/roulette.db
+    disk:
+      name: roulette-data
+      mountPath: /var/data
+      sizeGB: 1
