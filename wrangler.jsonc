@@ -1,22 +1,12 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"name": "drivu-tbl-roulette",
-	"main": "src/worker.js",
+	"main": "src/legacy-worker.js",
 	"compatibility_date": "2026-08-01",
 	"workers_dev": true,
 	"preview_urls": false,
-	"secrets": {
-		"required": [
-			"OWNER_PIN_SHA256",
-			"RATE_LIMIT_SECRET"
-		]
-	},
-	"assets": {
-		"directory": "./public",
-		"binding": "ASSETS",
-		"run_worker_first": [
-			"/api/*"
-		]
+	"vars": {
+		"CANONICAL_PUBLIC_URL": "https://drivu-tbl-summer-rewards.pages.dev/"
 	},
 	"observability": {
 		"enabled": true

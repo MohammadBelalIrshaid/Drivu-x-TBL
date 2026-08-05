@@ -7,9 +7,12 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "check": "node --check src/worker.js",
-    "dev": "wrangler dev",
+    "check": "node --check src/worker.js && node --check src/legacy-worker.js",
+    "build:pages": "node scripts/build-pages.mjs",
+    "dev": "npm run build:pages && wrangler pages dev --cwd cloudflare-pages",
+    "dev:legacy": "wrangler dev",
     "deploy": "wrangler d1 migrations apply drivu-tbl-roulette-prod --remote && wrangler deploy",
+    "deploy:pages": "npm run build:pages && wrangler pages deploy --cwd cloudflare-pages --branch main",
     "cf:types": "wrangler types"
   },
   "devDependencies": {

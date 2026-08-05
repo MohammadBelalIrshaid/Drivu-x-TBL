@@ -1,10 +1,10 @@
-# Drivu x TBL - Spin & Win
+# Drivu × TBL Summer Rewards
 
 A responsive campaign roulette built from the supplied beach artwork. Visitors can use 2-16 wheel slices, leave labels blank for automatic prize names, and see a full-screen winner reveal. Results are stored server-side for the private owner dashboard.
 
 ## Live site
 
-Open the public roulette at [drivu-tbl-roulette.mohammadbelalirshaid.workers.dev](https://drivu-tbl-roulette.mohammadbelalirshaid.workers.dev). The private dashboard is available from the **Owner access** button on the same page.
+Open the public roulette at [drivu-tbl-summer-rewards.pages.dev](https://drivu-tbl-summer-rewards.pages.dev). The private dashboard is available from the **Owner access** button on the same page. The earlier personal-name `workers.dev` address redirects visitors to this canonical URL.
 
 ## Run locally with Python
 
@@ -30,17 +30,19 @@ Install Node.js and npm, then run:
 
 ```powershell
 npm install
-npx wrangler d1 migrations apply drivu-tbl-roulette-prod --local
-Copy-Item .dev.vars.example .dev.vars
-# Replace both placeholder values in .dev.vars, then start the Worker:
+npx wrangler d1 migrations apply drivu-tbl-roulette-prod --local --cwd cloudflare-pages
+Copy-Item .dev.vars.example cloudflare-pages/.dev.vars
+# Replace both placeholder values, then start the Pages application:
 npm run dev
 ```
 
-The ignored `.dev.vars` file supplies local values for `OWNER_PIN_SHA256` and `RATE_LIMIT_SECRET`. `OWNER_PIN_SHA256` is the 64-character hexadecimal SHA-256 digest of a private, randomly generated owner password of at least 16 characters; `RATE_LIMIT_SECRET` must be a random string of at least 32 characters. Never commit either value.
+The ignored `cloudflare-pages/.dev.vars` file supplies local values for `OWNER_PIN_SHA256` and `RATE_LIMIT_SECRET`. `OWNER_PIN_SHA256` is the 64-character hexadecimal SHA-256 digest of a private, randomly generated owner password of at least 16 characters; `RATE_LIMIT_SECRET` must be a random string of at least 32 characters. Never commit either value.
 
-## Deploy to Cloudflare Workers and D1
+## Deploy to Cloudflare Pages, Workers, and D1
 
-The production D1 binding is defined in `wrangler.jsonc`. From the project directory:
+The public site is deployed to Cloudflare Pages so its free URL does not expose the Cloudflare account name. A separate fail-closed Worker retains the scheduled database cleanup, redirects navigation from the retired personal-name hostname, and rejects API calls on that old address. Both deployments use the same production D1 database.
+
+Apply migrations, create the Pages project once, configure its secrets, and deploy Pages first:
 
 ```powershell
 npm install
@@ -48,12 +50,19 @@ npx wrangler login
 npm run check
 npx wrangler d1 migrations list drivu-tbl-roulette-prod --remote
 npx wrangler d1 migrations apply drivu-tbl-roulette-prod --remote
-npx wrangler secret put OWNER_PIN_SHA256
-npx wrangler secret put RATE_LIMIT_SECRET
+npx wrangler pages project create drivu-tbl-summer-rewards --production-branch main
+npx wrangler pages secret put OWNER_PIN_SHA256 --project-name drivu-tbl-summer-rewards
+npx wrangler pages secret put RATE_LIMIT_SECRET --project-name drivu-tbl-summer-rewards
+npm run deploy:pages
+```
+
+Verify `https://drivu-tbl-summer-rewards.pages.dev/api/health`, owner sign-in, and the static security headers. Only after Pages is healthy, deploy the retired-host redirect and scheduled cleanup Worker:
+
+```powershell
 npm run deploy
 ```
 
-Enter each secret only at Wrangler's prompt. Do not put production values in `wrangler.jsonc`, source files, shell scripts, or version control. Run remote migrations before deploying code that depends on a new schema.
+Enter secrets only at Wrangler's prompt. Do not put production values in configuration, source files, shell scripts, or version control. Run remote migrations before deploying code that depends on a new schema. The Pages API accepts requests only on the canonical production hostname; deployment aliases cannot create additional spin identities.
 
 Cloudflare's free tier currently includes 100,000 dynamic Worker requests per day, 5 million D1 rows read per day, 100,000 D1 rows written per day, 5 GB of included D1 account storage, and a 500 MB limit for each free D1 database. Static asset requests are free and unlimited. Index updates also count as D1 row writes, so monitor usage during high-volume campaigns.
 
@@ -75,8 +84,11 @@ The one-spin rule is a browser control, not identity verification. A participant
 drivu-tbl-roulette/
 |-- public/                  # HTML, CSS, browser JavaScript, headers, and artwork
 |-- src/worker.js            # Cloudflare API, authentication, rate limits, and D1 access
+|-- src/legacy-worker.js     # Retired-host redirect and scheduled D1 cleanup
+|-- scripts/build-pages.mjs  # Builds the Pages advanced-mode deployment bundle
+|-- cloudflare-pages/        # Pages project and D1 binding configuration
 |-- migrations/              # Versioned D1 schema
-|-- wrangler.jsonc           # Worker, static asset, scheduled task, and D1 configuration
+|-- wrangler.jsonc           # Retired-host Worker, scheduled task, and D1 configuration
 |-- package.json             # Wrangler scripts and pinned development dependency
 |-- server.py                # Local Python API and SQLite server
 |-- requirements.txt         # Documents the dependency-free Python runtime

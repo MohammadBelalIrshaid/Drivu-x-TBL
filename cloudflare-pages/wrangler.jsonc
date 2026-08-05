@@ -1,0 +1,17 @@
+{
+	"$schema": "../node_modules/wrangler/config-schema.json",
+	"name": "drivu-tbl-summer-rewards",
+	"pages_build_output_dir": "../dist-pages",
+	"compatibility_date": "2026-08-01",
+	"vars": {
+		"CANONICAL_API_HOST": "drivu-tbl-summer-rewards.pages.dev"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "drivu-tbl-roulette-prod",
+			"database_id": "533b6234-72b8-4455-b0b8-8a96cc533fe7",
+			"migrations_dir": "../migrations"
+		}
+	]
+}

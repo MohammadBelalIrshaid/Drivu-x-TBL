@@ -13,3 +13,4 @@ data/*
 !data/.gitkeep
 .browser-test/
 test-artifacts/
+dist-pages/

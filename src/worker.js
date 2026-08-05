@@ -233,6 +233,25 @@ function requireSameOrigin(request) {
   }
 }
 
+function requireCanonicalApiHostname(request, env) {
+  if (typeof env.CANONICAL_API_HOST !== "string") return;
+
+  const expectedHostname = env.CANONICAL_API_HOST.trim().toLowerCase();
+  const requestUrl = new URL(request.url);
+  const requestHostname = requestUrl.hostname.toLowerCase();
+  const isLocal = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(
+    requestHostname,
+  );
+  if (!expectedHostname || isLocal || requestHostname === expectedHostname) return;
+
+  throw new APIError(
+    421,
+    "Use the official Summer Rewards website for this request.",
+    "canonical_host_required",
+    { canonicalUrl: `https://${expectedHostname}/` },
+  );
+}
+
 async function readJson(request) {
   const contentType = (request.headers.get("Content-Type") || "")
     .split(";", 1)[0]
@@ -709,7 +728,8 @@ async function handleCsvExport(request, env) {
   const body = `\ufeff${output.map((line) => line.map(csvCell).join(",")).join("\r\n")}\r\n`;
   const headers = new Headers({
     "Content-Type": "text/csv; charset=utf-8",
-    "Content-Disposition": 'attachment; filename="drivu-tbl-spin-results.csv"',
+    "Content-Disposition":
+      'attachment; filename="drivu-tbl-summer-rewards-results.csv"',
     "Content-Length": String(textEncoder.encode(body).byteLength),
     "Cache-Control": "no-store",
   });
@@ -758,6 +778,8 @@ async function handleOwnerReset(request, env) {
 }
 
 async function handleApi(request, env) {
+  requireCanonicalApiHostname(request, env);
+
   const url = new URL(request.url);
   const { pathname } = url;
 

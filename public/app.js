@@ -1804,7 +1804,10 @@
 
     if (elements.ownerExport) {
       elements.ownerExport.href = "/api/admin/export.csv";
-      elements.ownerExport.setAttribute("download", "drivu-roulette-results.csv");
+      elements.ownerExport.setAttribute(
+        "download",
+        "drivu-tbl-summer-rewards-results.csv",
+      );
     }
 
     window.addEventListener("storage", (event) => {

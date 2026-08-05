@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dependency-free web server for the Drivu x TBL Spin & Win campaign."""
+"""Dependency-free web server for the Drivu × TBL Summer Rewards campaign."""
 
 from __future__ import annotations
 
@@ -641,7 +641,10 @@ class RouletteHandler(SimpleHTTPRequestHandler):
         content = ("\ufeff" + output.getvalue()).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/csv; charset=utf-8")
-        self.send_header("Content-Disposition", 'attachment; filename="drivu-tbl-spin-results.csv"')
+        self.send_header(
+            "Content-Disposition",
+            'attachment; filename="drivu-tbl-summer-rewards-results.csv"',
+        )
         self.send_header("Content-Length", str(len(content)))
         self.end_headers()
         self.wfile.write(content)
@@ -702,7 +705,7 @@ class RouletteHandler(SimpleHTTPRequestHandler):
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run the Drivu x TBL Spin & Win website.")
+    parser = argparse.ArgumentParser(description="Run the Drivu × TBL Summer Rewards website.")
     default_host = os.environ.get("HOST", "127.0.0.1")
     try:
         default_port = int(os.environ.get("PORT", "8000"))
@@ -743,7 +746,7 @@ def main() -> None:
     server = RouletteHTTPServer((args.host, args.port), RouletteHandler)
     display_host = "127.0.0.1" if args.host in {"0.0.0.0", "::"} else args.host
     url = f"http://{display_host}:{server.server_address[1]}"
-    print(f"Drivu x TBL Spin & Win is running at {url}")
+    print(f"Drivu × TBL Summer Rewards is running at {url}")
     if OWNER_PIN == DEFAULT_OWNER_PIN:
         print("Owner PIN: 6609 (set ROULETTE_OWNER_PIN before sharing or deployment)")
     if args.open:
