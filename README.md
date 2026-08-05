@@ -2,6 +2,10 @@
 
 A responsive campaign roulette built from the supplied beach artwork. Visitors can use 2-16 wheel slices, leave labels blank for automatic prize names, and see a full-screen winner reveal. Results are stored server-side for the private owner dashboard.
 
+## Live site
+
+Open the public roulette at [drivu-tbl-roulette.mohammadbelalirshaid.workers.dev](https://drivu-tbl-roulette.mohammadbelalirshaid.workers.dev). The private dashboard is available from the **Owner access** button on the same page.
+
 ## Run locally with Python
 
 Python 3.11 or newer is the only requirement; the server has no third-party Python dependencies.
