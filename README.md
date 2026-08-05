@@ -1,61 +1,80 @@
-# Drivu x TBL — Spin & Win
+# Drivu x TBL - Spin & Win
 
-A responsive campaign roulette built from the supplied beach artwork. Visitors can configure 2–16 wheel slices, leave labels blank to use automatic prize names, and receive a full-screen winner reveal. Each browser gets one spin per campaign round, while every server-backed result is stored in a private, password-protected owner dashboard.
+A responsive campaign roulette built from the supplied beach artwork. Visitors can use 2-16 wheel slices, leave labels blank for automatic prize names, and see a full-screen winner reveal. Results are stored server-side for the private owner dashboard.
 
-## Run it
+## Run locally with Python
 
-Python 3.11 or newer is the only requirement.
+Python 3.11 or newer is the only requirement; the server has no third-party Python dependencies.
 
 ```powershell
-cd "C:\Users\Mohammad Belal\Downloads\drivu-tbl-roulette"
+cd "path\to\drivu-tbl-roulette"
 python server.py --open
 ```
 
-The site runs at `http://127.0.0.1:8000`.
-
-For a quick local preview, the owner PIN is `6609`. Set a private PIN before sharing or deploying the site:
+Open `http://127.0.0.1:8000`. The built-in preview credentials work only on the loopback interface. To test with a private PIN without placing it in shell history:
 
 ```powershell
-$env:ROULETTE_OWNER_PIN = "use-a-long-private-pin"
-python server.py --host 0.0.0.0 --port 8000
+$env:ROULETTE_OWNER_PIN = Read-Host "Private owner PIN"
+python server.py
 ```
 
-## How results are stored
+The Python server stores results in `data/roulette.db`. This local SQLite database is separate from Cloudflare D1.
 
-- **Visitor history:** the latest 20 spins are kept only in that visitor's browser.
-- **Owner history:** all server-backed spins are written to `data/roulette.db` and can only be read after owner sign-in.
-- **Winner selection:** the server selects the winning slice with Python's cryptographically secure random generator before the wheel animates.
-- **One-try rule:** an anonymous long-lived browser cookie allows one successful spin per campaign round. Only a SHA-256 hash of its random token is stored.
-- **New rounds:** the owner dashboard's **Start new round** action archives the visible winner list and grants every browser one fresh try. Earlier rounds remain recoverable in SQLite.
-- **CSV export:** available inside the owner dashboard.
+## Run the Cloudflare version locally
 
-If the page is opened without `server.py`, the wheel can fall back to one device-only spin, but that result cannot reach the private owner log.
+Install Node.js and npm, then run:
 
-The one-try rule is browser-based, not identity verification. Someone can obtain another attempt by using a different browser/device or clearing site data. For strict one-person enforcement, add unique invitation codes, account sign-in, or phone verification before running the campaign.
+```powershell
+npm install
+npx wrangler d1 migrations apply drivu-tbl-roulette-prod --local
+Copy-Item .dev.vars.example .dev.vars
+# Replace both placeholder values in .dev.vars, then start the Worker:
+npm run dev
+```
 
-## Deployment notes
+The ignored `.dev.vars` file supplies local values for `OWNER_PIN_SHA256` and `RATE_LIMIT_SECRET`. `OWNER_PIN_SHA256` is the 64-character hexadecimal SHA-256 digest of a private, randomly generated owner password of at least 16 characters; `RATE_LIMIT_SECRET` must be a random string of at least 32 characters. Never commit either value.
 
-The repository includes a Render Blueprint for a single Frankfurt web service with a 1 GB persistent disk. This preserves the private SQLite winner history across restarts and deployments.
+## Deploy to Cloudflare Workers and D1
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FMohammadBelalIrshaid%2FDrivu-x-TBL)
+The production D1 binding is defined in `wrangler.jsonc`. From the project directory:
 
-During deployment, Render asks for `ROULETTE_OWNER_PIN`. Use a private value with at least 8 characters and keep it outside the repository. The Blueprint also enables secure cookies, proxy-aware rate limiting, the platform-provided port, and `/api/health` health checks.
+```powershell
+npm install
+npx wrangler login
+npm run check
+npx wrangler d1 migrations list drivu-tbl-roulette-prod --remote
+npx wrangler d1 migrations apply drivu-tbl-roulette-prod --remote
+npx wrangler secret put OWNER_PIN_SHA256
+npx wrangler secret put RATE_LIMIT_SECRET
+npm run deploy
+```
 
-The persistent disk requires a paid Render web-service instance. Keep the service at one instance because SQLite cannot share this disk across multiple instances. Back up `/var/data/roulette.db` or export the current round as CSV when campaign history must be retained.
+Enter each secret only at Wrangler's prompt. Do not put production values in `wrangler.jsonc`, source files, shell scripts, or version control. Run remote migrations before deploying code that depends on a new schema.
 
-The server refuses to bind publicly with the documented local preview PIN. The `6609` fallback works only on the loopback interface for local development.
+Cloudflare's free tier currently includes 100,000 dynamic Worker requests per day, 5 million D1 rows read per day, 100,000 D1 rows written per day, 5 GB of included D1 account storage, and a 500 MB limit for each free D1 database. Static asset requests are free and unlimited. Index updates also count as D1 row writes, so monitor usage during high-volume campaigns.
+
+## Results, privacy, and the one-browser rule
+
+- The latest 20 visitor results remain in that visitor's browser.
+- Production results are stored in D1 and exposed only through authenticated owner API routes and the owner dashboard.
+- Owner sessions, rate limits, campaign rounds, and spin records are persisted in D1.
+- The server chooses the winner before the wheel animation begins.
+- A long-lived anonymous cookie permits one successful spin per browser per campaign round; only its SHA-256 hash is stored.
+- Starting a new round gives each browser one fresh attempt while retaining earlier records.
+- The owner dashboard can view results and export the current round as CSV.
+
+The one-spin rule is a browser control, not identity verification. A participant can receive another attempt by clearing site data or using another browser or device. Use unique invitation codes, account sign-in, or verified contact details when strict one-person enforcement is required.
 
 ## Project structure
 
 ```text
 drivu-tbl-roulette/
-├── server.py                 # Static server, API, auth, and SQLite persistence
-├── render.yaml               # Render service, secret, and persistent-disk configuration
-├── requirements.txt          # Python runtime marker (no third-party packages)
-├── public/
-│   ├── index.html
-│   ├── styles.css
-│   ├── app.js
-│   └── assets/               # Supplied campaign artwork, optimized for web
-└── data/                     # Runtime database (created automatically)
+|-- public/                  # HTML, CSS, browser JavaScript, headers, and artwork
+|-- src/worker.js            # Cloudflare API, authentication, rate limits, and D1 access
+|-- migrations/              # Versioned D1 schema
+|-- wrangler.jsonc           # Worker, static asset, scheduled task, and D1 configuration
+|-- package.json             # Wrangler scripts and pinned development dependency
+|-- server.py                # Local Python API and SQLite server
+|-- requirements.txt         # Documents the dependency-free Python runtime
+`-- data/                    # Local SQLite data; runtime files are ignored by Git
 ```

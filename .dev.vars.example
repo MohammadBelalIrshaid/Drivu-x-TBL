@@ -1,0 +1,2 @@
+OWNER_PIN_SHA256="replace-with-the-64-character-sha256-digest"
+RATE_LIMIT_SECRET="replace-with-at-least-32-random-characters"

@@ -413,6 +413,8 @@
         ? "spinning"
         : !state.eligibilityReady
           ? "checking"
+          : state.eligibilitySource === "offline"
+            ? "retry"
           : state.canSpin
             ? "ready"
             : "played";
@@ -423,6 +425,12 @@
       setSpinStatus("Checking whether this browser has already played\u2026", "neutral");
     } else if (state.isSpinning) {
       setSpinButtonCopy("Spinning", "good luck");
+    } else if (state.eligibilitySource === "offline" && state.canSpin) {
+      setSpinButtonCopy("Retry", "secure spin");
+      setSpinStatus(
+        "Recording is temporarily offline. Tap to retry; no prize is chosen until it is saved.",
+        "error",
+      );
     } else if (!state.canSpin) {
       setSpinButtonCopy("Already", "played");
       const previousLabel = state.previousSpin?.result?.label;
@@ -731,11 +739,6 @@
     return Math.floor(Math.random() * length);
   }
 
-  function localFallbackAvailable() {
-    const round = readRoundState();
-    return !round.attempted && readLocalHistory().length === 0;
-  }
-
   async function fetchJson(url, options = {}, timeout = 7000) {
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), timeout);
@@ -770,79 +773,101 @@
     }
   }
 
-  async function chooseWinner(choices, participant) {
-    try {
-      const response = await fetchJson("/api/spin", {
-        method: "POST",
-        body: JSON.stringify({
-          choices,
-          ...(participant ? { participant } : {}),
-        }),
-      });
-      const winnerIndex = Number(response?.winnerIndex);
-      if (!Number.isInteger(winnerIndex) || winnerIndex < 0 || winnerIndex >= choices.length) {
-        throw new Error("The server returned an invalid prize index.");
-      }
-      return {
-        kind: "spin",
-        id: response.id || createChoiceId(),
-        createdAt: response.createdAt || new Date().toISOString(),
-        winnerIndex,
-        participant,
-        result: {
-          id: response.result?.id || choices[winnerIndex].id,
-          label: response.result?.label || choices[winnerIndex].label,
-        },
-        source: "server",
-      };
-    } catch (error) {
-      if (
-        error?.status === 409 &&
-        error?.data?.error?.code === "already_spun"
-      ) {
-        return {
-          kind: "locked",
-          previousSpin: error?.data?.previousSpin || state.previousSpin || null,
-          message:
-            error?.data?.error?.message ||
-            error?.message ||
-            "This browser has already played this round.",
-          code: error?.data?.error?.code || "request_rejected",
-        };
-      }
+  function wait(milliseconds) {
+    return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+  }
 
-      if (error?.status >= 400 && error.status < 500) {
+  function serverSpin(response, choices, participant) {
+    const winnerIndex = Number(response?.winnerIndex);
+    if (!Number.isInteger(winnerIndex) || winnerIndex < 0 || winnerIndex >= choices.length) {
+      throw new Error("The server returned an invalid prize index.");
+    }
+    return {
+      kind: "spin",
+      id: response.id || createChoiceId(),
+      createdAt: response.createdAt || new Date().toISOString(),
+      winnerIndex,
+      participant:
+        typeof response.participant === "string" ? response.participant : participant,
+      result: {
+        id: response.result?.id || choices[winnerIndex].id,
+        label: response.result?.label || choices[winnerIndex].label,
+      },
+      source: "server",
+    };
+  }
+
+  async function chooseWinner(choices, participant) {
+    const requestOptions = {
+      method: "POST",
+      body: JSON.stringify({
+        choices,
+        ...(participant ? { participant } : {}),
+      }),
+    };
+    let lastError = null;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return serverSpin(await fetchJson("/api/spin", requestOptions), choices, participant);
+      } catch (error) {
+        lastError = error;
+        if (error?.status === 409 && error?.data?.error?.code === "already_spun") {
+          const previousSpin = error?.data?.previousSpin || state.previousSpin || null;
+          if (attempt > 0 && previousSpin) {
+            try {
+              return serverSpin(previousSpin, choices, participant);
+            } catch (_invalidPreviousSpin) {
+              // Fall through to the normal locked-round presentation.
+            }
+          }
+          return {
+            kind: "locked",
+            previousSpin,
+            message:
+              error?.data?.error?.message ||
+              error?.message ||
+              "This browser has already played this round.",
+            code: error?.data?.error?.code || "request_rejected",
+          };
+        }
+
+        if (error?.status >= 400 && error.status < 500) {
+          return {
+            kind: "error",
+            message:
+              error?.data?.error?.message ||
+              error?.message ||
+              "The spin could not be started. Please try again.",
+            code: error?.data?.error?.code || "request_rejected",
+          };
+        }
+        if (attempt === 0) await wait(400);
+      }
+    }
+
+    try {
+      const eligibility = await fetchJson("/api/eligibility", {}, 5000);
+      if (eligibility?.eligible === false && eligibility?.previousSpin) {
+        return serverSpin(eligibility.previousSpin, choices, participant);
+      }
+      if (eligibility?.eligible === true) {
         return {
           kind: "error",
-          message:
-            error?.data?.error?.message ||
-            error?.message ||
-            "The spin could not be started. Please try again.",
-          code: error?.data?.error?.code || "request_rejected",
+          message: "No result was recorded. Please tap Spin to try again.",
+          code: "spin_not_recorded",
         };
       }
-
-      if (!localFallbackAvailable()) {
-        return {
-          kind: "locked",
-          previousSpin: state.previousSpin || readRoundState().previousSpin,
-          message: "This browser has already used its local attempt for this round.",
-          code: "local_attempt_used",
-        };
-      }
-
-      const winnerIndex = secureRandomIndex(choices.length);
-      return {
-        kind: "spin",
-        id: createChoiceId(),
-        createdAt: new Date().toISOString(),
-        winnerIndex,
-        participant,
-        result: choices[winnerIndex],
-        source: "local",
-        fallbackReason: error?.message || "The server could not be reached.",
-      };
+    } catch (_recoveryError) {
+      // A later attempt will recover the saved result once connectivity returns.
     }
+
+    return {
+      kind: "error",
+      message:
+        "The connection was interrupted, so the result could not be confirmed. Reconnect and tap Spin again to recover it safely.",
+      code: lastError?.data?.error?.code || "result_unconfirmed",
+    };
   }
 
   function easeOutQuint(value) {
@@ -1193,6 +1218,11 @@
     if (state.eligibilitySource === "server") {
       const stillEligible = await checkEligibility();
       if (!stillEligible) {
+        if (state.previousSpin) {
+          openWinnerDialog(state.previousSpin, state.previousSpin.participant, {
+            alreadyPlayed: true,
+          });
+        }
         setSpinning(false);
         return;
       }
@@ -1263,7 +1293,7 @@
       setConnectionStatus(true, "Secure recording online");
       return true;
     } catch (_error) {
-      setConnectionStatus(false, "Local mode available");
+      setConnectionStatus(false, "Recording service offline");
       return false;
     }
   }
@@ -1329,9 +1359,9 @@
       const locallyUsed = round.attempted || history.length > 0;
 
       state.generation = round.generation;
-      state.eligibilitySource = "local";
+      state.eligibilitySource = "offline";
       state.eligibilityReady = true;
-      setConnectionStatus(false, "Local mode available");
+      setConnectionStatus(false, "Recording service offline");
       if (locallyUsed) {
         lockRound(previous, { openDialog: false });
       } else {

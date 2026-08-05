@@ -1,0 +1,36 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "drivu-tbl-roulette",
+	"main": "src/worker.js",
+	"compatibility_date": "2026-08-01",
+	"workers_dev": true,
+	"preview_urls": false,
+	"secrets": {
+		"required": [
+			"OWNER_PIN_SHA256",
+			"RATE_LIMIT_SECRET"
+		]
+	},
+	"assets": {
+		"directory": "./public",
+		"binding": "ASSETS",
+		"run_worker_first": [
+			"/api/*"
+		]
+	},
+	"observability": {
+		"enabled": true
+	},
+	"triggers": {
+		"crons": [
+			"17 3 * * *"
+		]
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "drivu-tbl-roulette-prod",
+			"database_id": "533b6234-72b8-4455-b0b8-8a96cc533fe7"
+		}
+	]
+}

@@ -40,7 +40,6 @@ COOKIE_NAME = "drivu_owner_session"
 VISITOR_COOKIE_NAME = "drivu_visitor"
 COOKIE_SECURE = (
     os.environ.get("ROULETTE_COOKIE_SECURE", "").lower() in {"1", "true", "yes", "on"}
-    or os.environ.get("RENDER", "").lower() == "true"
 )
 TRUST_PROXY = os.environ.get("ROULETTE_TRUST_PROXY", "").lower() in {
     "1",
